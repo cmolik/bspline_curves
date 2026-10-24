@@ -93,7 +93,7 @@
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     Parameterization & Basis Functions Ni,p(t)
                 </div>
-                Basis functions are rendered directly inside the knot timeline domain (t). Control points P0-P6 match the color of their respective basis function N0-N6. Click on the timeline to scrub parameter t, or drag knot markers to see how basis functions reshape dynamically.
+                Basis functions are rendered directly inside the knot timeline domain (t). Control points P0-P6 match the color of their respective basis function N0-N6. Active curve segment interval [tp, tn+1] is shown on a white background, while non-active outer domains are light gray.
             </div>
 
             <!-- Integrated Knot & Basis Function Timeline Container -->
@@ -151,7 +151,7 @@
 
     </main>
 
-    <div id="infoModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-300">
+    <div id="infoModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-300 opacity-0 pointer-events-none">
         <div class="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 shadow-xl relative">
             <h3 class="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
                 <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -164,7 +164,7 @@
                 <ul class="list-disc list-inside space-y-1 text-slate-500 text-xs">
                     <li><strong>Degree Selection:</strong> Switch the curve degree (p = 1 to p = 3) using the top panel header controls.</li>
                     <li><strong>Color-Coded Points:</strong> Each control point is styled with the exact color of its corresponding basis function.</li>
-                    <li><strong>Basis Functions in Timeline:</strong> Graphs of basis functions Ni,p(t) are overlaid directly inside the parameter t timeline.</li>
+                    <li><strong>Basis Functions in Timeline:</strong> Graphs of basis functions Ni,p(t) are overlaid directly inside the parameter t timeline. Active curve intervals [tp, tn+1] are highlighted in white.</li>
                     <li><strong>Knot Drag and Drop:</strong> Drag knot handles along the timeline to instantly alter knot spacing ti and observe curve changes.</li>
                 </ul>
             </div>
@@ -481,6 +481,43 @@
             
             timelineCtx.clearRect(0, 0, width, height);
 
+            let n = controlPoints.length - 1;
+            let tMin = knots[0];
+            let tMax = knots[knots.length - 1];
+            let range = tMax - tMin || 1;
+
+            // Highlight valid segment domain [t_p, t_{n+1}] vs inactive domain
+            let tStartSeg = knots[p];
+            let tEndSeg = knots[controlPoints.length];
+
+            let xStartSeg = ((tStartSeg - tMin) / range) * width;
+            let xEndSeg = ((tEndSeg - tMin) / range) * width;
+
+            // Inactive outer interval left: [t_0, t_p]
+            if (xStartSeg > 0) {
+                timelineCtx.fillStyle = '#f1f5f9'; // slate-100 / light gray
+                timelineCtx.fillRect(0, 0, xStartSeg, height);
+            }
+
+            // Inactive outer interval right: [t_{n+1}, t_m]
+            if (xEndSeg < width) {
+                timelineCtx.fillStyle = '#f1f5f9'; // slate-100 / light gray
+                timelineCtx.fillRect(xEndSeg, 0, width - xEndSeg, height);
+            }
+
+            // Active domain middle: [t_p, t_{n+1}]
+            timelineCtx.fillStyle = '#ffffff'; // white background
+            timelineCtx.fillRect(xStartSeg, 0, xEndSeg - xStartSeg, height);
+
+            // Domain boundary lines
+            timelineCtx.strokeStyle = '#cbd5e1'; // slate-300
+            timelineCtx.lineWidth = 1.5;
+            
+            timelineCtx.beginPath();
+            timelineCtx.moveTo(xStartSeg, 0); timelineCtx.lineTo(xStartSeg, height);
+            timelineCtx.moveTo(xEndSeg, 0); timelineCtx.lineTo(xEndSeg, height);
+            timelineCtx.stroke();
+
             // Subtle timeline background grid lines
             timelineCtx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
             timelineCtx.lineWidth = 1;
@@ -488,11 +525,6 @@
                 let y = (height / 4) * i;
                 timelineCtx.beginPath(); timelineCtx.moveTo(0, y); timelineCtx.lineTo(width, y); timelineCtx.stroke();
             }
-
-            let n = controlPoints.length - 1;
-            let tMin = knots[0];
-            let tMax = knots[knots.length - 1];
-            let range = tMax - tMin || 1;
 
             // Draw each basis function curve Ni,p(t) using its specific color matching control point Pi
             for (let i = 0; i <= n; i++) {
