@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B-Spline Demo & Basis Functions</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Inter Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="h-full bg-slate-50 text-slate-800 flex flex-col overflow-hidden">
+
+    <header class="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between shadow-sm shrink-0">
+        <div>
+            <h1 class="text-xl font-bold text-slate-900">
+                Interactive B-Spline Curve & Basis Functions
+            </h1>
+            <p class="text-xs text-slate-500 mt-0.5">
+                Knot vector editing, de Boor recursion, and basis functions rendered directly on the parameter t timeline.
+            </p>
+        </div>
+        <div class="flex items-center gap-3 mt-2 sm:mt-0">
+            <!-- Degree Selector -->
+            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 text-xs font-semibold">
+                <span class="text-slate-500 px-2 font-medium">Degree:</span>
+                <button data-degree="1" class="degree-btn px-2.5 py-1 rounded-md transition text-slate-600 hover:text-slate-900">1</button>
+                <button data-degree="2" class="degree-btn px-2.5 py-1 rounded-md transition text-slate-600 hover:text-slate-900">2</button>
+                <button data-degree="3" class="degree-btn px-2.5 py-1 rounded-md transition bg-blue-600 text-white shadow-sm">3</button>
+            </div>
+            <!-- Segment Joints Toggle -->
+            <button id="toggleJointsBtn" class="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 text-xs font-semibold rounded-lg transition border border-slate-200 flex items-center gap-1.5">
+                <span id="jointToggleDot" class="w-2 h-2 rounded-full bg-emerald-600"></span>
+                <span>Segment Joints: <span id="jointToggleState">ON</span></span>
+            </button>
+            <!-- Control Polygon & Points Toggle -->
+            <button id="toggleControlPolygonBtn" class="px-3 py-1.5 bg-slate-100 text-slate-700 hover:bg-slate-200 active:scale-95 text-xs font-semibold rounded-lg transition border border-slate-200 flex items-center gap-1.5">
+                <span id="polyToggleDot" class="w-2 h-2 rounded-full bg-slate-600"></span>
+                <span>Control Net: <span id="polyToggleState">ON</span></span>
+            </button>
+            <button id="resetKnotsBtn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 active:scale-95 text-xs font-semibold rounded-lg transition shadow-sm border border-slate-300 text-slate-700 flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                Reset Uniform Knots
+            </button>
+            <button id="toggleControlsBtn" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 active:scale-95 text-xs font-semibold text-white rounded-lg transition shadow-sm flex items-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                Help
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        
+        <!-- Left Pane: B-Spline Curve Canvas & Control Points -->
+        <div class="flex-1 flex flex-col bg-white relative border-b lg:border-b-0 lg:border-r border-slate-200">
+            <div class="absolute top-3 left-3 z-10 bg-white/90 backdrop-blur px-3 py-1.5 rounded-lg border border-slate-200 text-xs shadow-sm text-slate-600 pointer-events-none">
+                <span class="font-semibold text-blue-600">Control Points:</span> Drag points to move them
+            </div>
+            <div class="flex-1 w-full h-full relative cursor-crosshair">
+                <canvas id="curveCanvas" class="w-full h-full block"></canvas>
+            </div>
+            <!-- Bottom legend for curve canvas -->
+            <div class="bg-slate-50 px-4 py-2.5 border-t border-slate-200 text-xs flex flex-wrap items-center justify-between gap-4 text-slate-600 shrink-0">
+                <div class="flex items-center gap-5 flex-wrap">
+                    <span class="flex items-center gap-2">
+                        <svg class="w-6 h-3" viewBox="0 0 24 12"><line x1="0" y1="6" x2="24" y2="6" stroke="#64748b" stroke-width="2" stroke-dasharray="3,3"/></svg>
+                        Control Polygon
+                    </span>
+                    <span class="flex items-center gap-2">
+                        <svg class="w-6 h-3" viewBox="0 0 24 12"><line x1="0" y1="6" x2="24" y2="6" stroke="#059669" stroke-width="3"/></svg>
+                        B-Spline Curve
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-emerald-600 inline-block border border-emerald-700 shadow-sm"></span> Segment Joints
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-3 h-3 rounded-full bg-amber-600 inline-block border border-amber-700 shadow-sm"></span> Evaluated Point C(t)
+                    </span>
+                </div>
+                <div id="evalInfo" class="font-mono text-slate-700 font-medium">Degree p = 3 | Knot Vector: ...</div>
+            </div>
+        </div>
+
+        <!-- Right Pane: Knot Vector Timeline & Overlaid Basis Functions -->
+        <div class="w-full lg:w-[500px] xl:w-[560px] flex flex-col bg-slate-50 shrink-0 p-5 gap-5 overflow-y-auto">
+            
+            <!-- Explanation Card -->
+            <div class="bg-white border border-slate-200 rounded-xl p-4 text-xs text-slate-600 leading-relaxed shadow-sm">
+                <div class="font-semibold text-blue-600 mb-1 flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Parameterization & Basis Functions Ni,p(t)
+                </div>
+                Basis functions are rendered directly inside the knot timeline domain (t). Control points P0-P6 match the color of their respective basis function N0-N6. Click on the timeline to scrub parameter t, or drag knot markers to see how basis functions reshape dynamically.
+            </div>
+
+            <!-- Integrated Knot & Basis Function Timeline Container -->
+            <div class="flex flex-col gap-2">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                        Parameter Axis t & Basis Functions
+                    </h2>
+                    <div class="flex items-center gap-2">
+                        <button id="playAnimationBtn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-xs font-semibold rounded-lg transition shadow-sm flex items-center gap-1.5 text-white">
+                            <svg id="playIcon" class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                            <span id="playBtnText">Play</span>
+                        </button>
+                        <span class="text-xs font-mono font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200" id="currentTLabel">t = 0.50</span>
+                    </div>
+                </div>
+
+                <!-- Combined Interactive Timeline & Canvas Wrapper -->
+                <div id="timelineWrapper" class="relative h-64 bg-white rounded-xl border border-slate-300 shadow-sm overflow-hidden cursor-crosshair">
+                    <canvas id="timelineCanvas" class="w-full h-full block absolute inset-0 pointer-events-none"></canvas>
+                    
+                    <!-- DOM Knot Handles Container overlay -->
+                    <div id="knotHandlesLayer" class="absolute inset-0 pointer-events-none">
+                        <!-- Handles are dynamically injected here so they can receive direct mousedown -->
+                    </div>
+                </div>
+
+                <!-- Parameter t Slider Control -->
+                <div class="flex items-center gap-3 bg-white px-3 py-2.5 rounded-xl border border-slate-200 shadow-sm">
+                    <span class="text-xs font-mono font-medium text-slate-500">Parameter t:</span>
+                    <input id="paramSlider" type="range" min="0" max="1" step="0.001" value="0.5" class="flex-1 accent-amber-500 cursor-pointer h-1.5 bg-slate-200 rounded-lg">
+                    <span id="sliderValueLabel" class="text-xs font-mono font-semibold text-amber-600 w-10 text-right">0.50</span>
+                </div>
+
+                <div class="flex justify-between text-[11px] text-slate-500 px-1 font-mono">
+                    <span id="knotMinLabel">0.00</span>
+                    <span class="text-slate-400">Drag knots ti to modify curve and basis function shapes</span>
+                    <span id="knotMaxLabel">1.00</span>
+                </div>
+            </div>
+
+            <!-- Compact Mathematical Info Card -->
+            <div class="bg-white border border-slate-200 rounded-xl p-4 text-xs text-slate-600 space-y-2 shadow-sm">
+                <div class="text-slate-800 font-semibold">Current Knot Vector U:</div>
+                <div id="knotVectorText" class="font-mono text-blue-700 bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 break-all font-medium">
+                    [0.00, 0.10, 0.20, 0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90, 1.00]
+                </div>
+                <p id="knotInfoNote" class="text-[11px] text-slate-400">
+                    Note: For cubic splines (p = 3) with 7 control points, the knot vector contains 11 knots.
+                </p>
+            </div>
+
+        </div>
+
+    </main>
+
+    <div id="infoModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="bg-white border border-slate-200 rounded-2xl max-w-lg w-full p-6 shadow-xl relative">
+            <h3 class="text-lg font-bold text-slate-900 mb-2 flex items-center gap-2">
+                <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                B-Splines & Basis Functions Overview
+            </h3>
+            <div class="space-y-3 text-sm text-slate-600 leading-relaxed">
+                <p>
+                    This interactive demo visualizes a B-Spline curve with selectable <span class="text-blue-600 font-mono font-semibold">degree p = 1, 2, or 3</span> and its corresponding basis functions Ni,p(t).
+                </p>
+                <ul class="list-disc list-inside space-y-1 text-slate-500 text-xs">
+                    <li><strong>Degree Selection:</strong> Switch the curve degree (p = 1 to p = 3) using the top panel header controls.</li>
+                    <li><strong>Color-Coded Points:</strong> Each control point is styled with the exact color of its corresponding basis function.</li>
+                    <li><strong>Basis Functions in Timeline:</strong> Graphs of basis functions Ni,p(t) are overlaid directly inside the parameter t timeline.</li>
+                    <li><strong>Knot Drag and Drop:</strong> Drag knot handles along the timeline to instantly alter knot spacing ti and observe curve changes.</li>
+                </ul>
+            </div>
+            <div class="mt-6 flex justify-end">
+                <button id="closeModalBtn" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 font-semibold text-xs rounded-xl transition shadow-sm text-white">
+                    Got it, continue
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- B-Spline Math & State ---
+        let p = 3; // Degree 1, 2, or 3
+        // 7 Control points -> n = 6
+        let controlPoints = [
+            { x: 100, y: 340 },
+            { x: 170, y: 140 },
+            { x: 300, y: 110 },
+            { x: 420, y: 280 },
+            { x: 560, y: 400 },
+            { x: 680, y: 160 },
+            { x: 800, y: 260 }
+        ];
+
+        // Distinct vibrant color palette for basis functions and matching control points
+        const basisColors = ['#2563eb', '#9333ea', '#db2777', '#ea580c', '#16a34a', '#0284c7', '#ca8a04'];
+
+        // Fully uniform initial knot vector (no multiple boundary knots)
+        function getValidDefaultKnots(degree) {
+            let totalKnots = controlPoints.length + degree + 1;
+            let knotsArr = [];
+            for (let i = 0; i < totalKnots; i++) {
+                knotsArr.push(i / (totalKnots - 1));
+            }
+            return knotsArr;
+        }
+
+        let knots = getValidDefaultKnots(p);
+
+        let activeKnotIndex = null;
+        let activePointIndex = null;
+        let isDraggingKnot = false;
+        let isDraggingPoint = false;
+        let currentParamT = knots[p]; // Start within valid domain [tp, tn+1]
+        let showSegmentJoints = true;
+        let showControlPolygon = true;
+
+        // Animation state for Play/Pause
+        let isPlaying = false;
+        let animationFrameId = null;
+        let lastTimestamp = null;
+        const animationSpeed = 0.2; // units per second
+
+        // Cox-de Boor recursion formula for B-Spline basis functions Ni,p(t)
+        function basisFunction(i, pVal, t, U) {
+            if (pVal === 0) {
+                if ((U[i] <= t && t < U[i+1]) || (t === U[U.length-1] && t === U[i+1])) {
+                    return 1.0;
+                }
+                return 0.0;
+            }
+
+            let denom1 = U[i+pVal] - U[i];
+            let term1 = 0;
+            if (denom1 !== 0) {
+                term1 = ((t - U[i]) / denom1) * basisFunction(i, pVal-1, t, U);
+            }
+
+            let denom2 = U[i+pVal+1] - U[i+1];
+            let term2 = 0;
+            if (denom2 !== 0) {
+                term2 = ((U[i+pVal+1] - t) / denom2) * basisFunction(i+1, pVal-1, t, U);
+            }
+
+            return term1 + term2;
+        }
+
+        // Evaluate B-Spline curve point C(t)
+        function evaluateBSpline(t) {
+            let n = controlPoints.length - 1;
+            let cx = 0, cy = 0;
+            let tMin = knots[p];
+            let tMax = knots[n + 1];
+            let clampedT = Math.max(tMin, Math.min(tMax, t));
+
+            for (let i = 0; i <= n; i++) {
+                let N = basisFunction(i, p, clampedT, knots);
+                cx += N * controlPoints[i].x;
+                cy += N * controlPoints[i].y;
+            }
+            return { x: cx, y: cy, t: clampedT };
+        }
+
+        // --- DOM Elements & Canvas Setup ---
+        const curveCanvas = document.getElementById('curveCanvas');
+        const curveCtx = curveCanvas.getContext('2d');
+        const timelineCanvas = document.getElementById('timelineCanvas');
+        const timelineCtx = timelineCanvas.getContext('2d');
+        
+        const timelineWrapper = document.getElementById('timelineWrapper');
+        const knotHandlesLayer = document.getElementById('knotHandlesLayer');
+        const evalInfo = document.getElementById('evalInfo');
+        const currentTLabel = document.getElementById('currentTLabel');
+        const knotVectorText = document.getElementById('knotVectorText');
+        const knotInfoNote = document.getElementById('knotInfoNote');
+        const resetKnotsBtn = document.getElementById('resetKnotsBtn');
+        const toggleJointsBtn = document.getElementById('toggleJointsBtn');
+        const jointToggleState = document.getElementById('jointToggleState');
+        const jointToggleDot = document.getElementById('jointToggleDot');
+        const toggleControlPolygonBtn = document.getElementById('toggleControlPolygonBtn');
+        const polyToggleState = document.getElementById('polyToggleState');
+        const polyToggleDot = document.getElementById('polyToggleDot');
+        const toggleControlsBtn = document.getElementById('toggleControlsBtn');
+        const infoModal = document.getElementById('infoModal');
+        const closeModalBtn = document.getElementById('closeModalBtn');
+        const knotMinLabel = document.getElementById('knotMinLabel');
+        const knotMaxLabel = document.getElementById('knotMaxLabel');
+        const paramSlider = document.getElementById('paramSlider');
+        const sliderValueLabel = document.getElementById('sliderValueLabel');
+        const playAnimationBtn = document.getElementById('playAnimationBtn');
+        const playIcon = document.getElementById('playIcon');
+        const playBtnText = document.getElementById('playBtnText');
+        const degreeBtns = document.querySelectorAll('.degree-btn');
+
+        function resizeCanvases() {
+            const rect1 = curveCanvas.parentElement.getBoundingClientRect();
+            curveCanvas.width = rect1.width * window.devicePixelRatio;
+            curveCanvas.height = rect1.height * window.devicePixelRatio;
+            curveCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+            const rect2 = timelineWrapper.getBoundingClientRect();
+            timelineCanvas.width = rect2.width * window.devicePixelRatio;
+            timelineCanvas.height = rect2.height * window.devicePixelRatio;
+            timelineCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+
+            drawAll();
+        }
+
+        window.addEventListener('resize', resizeCanvases);
+
+        // Degree buttons listener
+        degreeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                if (isPlaying) togglePlayState();
+                let newDeg = parseInt(e.target.dataset.degree);
+                if (newDeg === p) return;
+                p = newDeg;
+
+                // Update styling of degree buttons
+                degreeBtns.forEach(b => {
+                    b.classList.remove('bg-blue-600', 'text-white', 'font-semibold', 'shadow-sm');
+                    b.classList.add('text-slate-600');
+                });
+                e.target.classList.add('bg-blue-600', 'text-white', 'font-semibold', 'shadow-sm');
+                e.target.classList.remove('text-slate-600');
+
+                // Re-initialize knots for new degree
+                knots = getValidDefaultKnots(p);
+                currentParamT = Math.max(knots[p], Math.min(knots[controlPoints.length], currentParamT));
+                drawAll();
+            });
+        });
+
+        // Toggle Segment Joints button listener
+        toggleJointsBtn.addEventListener('click', () => {
+            showSegmentJoints = !showSegmentJoints;
+            if (showSegmentJoints) {
+                jointToggleState.textContent = 'ON';
+                jointToggleDot.classList.remove('bg-slate-400');
+                jointToggleDot.classList.add('bg-emerald-600');
+            } else {
+                jointToggleState.textContent = 'OFF';
+                jointToggleDot.classList.remove('bg-emerald-600');
+                jointToggleDot.classList.add('bg-slate-400');
+            }
+            drawAll();
+        });
+
+        // Toggle Control Polygon & Points button listener
+        toggleControlPolygonBtn.addEventListener('click', () => {
+            showControlPolygon = !showControlPolygon;
+            if (showControlPolygon) {
+                polyToggleState.textContent = 'ON';
+                polyToggleDot.classList.remove('bg-slate-400');
+                polyToggleDot.classList.add('bg-slate-600');
+                toggleControlPolygonBtn.classList.remove('bg-slate-100', 'text-slate-500', 'border-slate-200');
+                toggleControlPolygonBtn.classList.add('bg-slate-100', 'text-slate-700', 'border-slate-200');
+            } else {
+                polyToggleState.textContent = 'OFF';
+                polyToggleDot.classList.remove('bg-slate-600');
+                polyToggleDot.classList.add('bg-slate-400');
+                toggleControlPolygonBtn.classList.remove('bg-slate-100', 'text-slate-700', 'border-slate-200');
+                toggleControlPolygonBtn.classList.add('bg-slate-100', 'text-slate-500', 'border-slate-200');
+            }
+            drawAll();
+        });
+
+        // --- Rendering Functions ---
+        function drawCurveScene() {
+            const width = curveCanvas.clientWidth;
+            const height = curveCanvas.clientHeight;
+            
+            curveCtx.clearRect(0, 0, width, height);
+
+            // Light background grid
+            curveCtx.strokeStyle = 'rgba(0, 0, 0, 0.04)';
+            curveCtx.lineWidth = 1;
+            const gridSize = 40;
+            for (let x = 0; x < width; x += gridSize) {
+                curveCtx.beginPath(); curveCtx.moveTo(x, 0); curveCtx.lineTo(x, height); curveCtx.stroke();
+            }
+            for (let y = 0; y < height; y += gridSize) {
+                curveCtx.beginPath(); curveCtx.moveTo(0, y); curveCtx.lineTo(width, y); curveCtx.stroke();
+            }
+
+            // Control polygon (distinct neutral slate color) - rendered only if enabled
+            if (showControlPolygon) {
+                curveCtx.strokeStyle = 'rgba(100, 116, 139, 0.5)'; // slate-500 with opacity
+                curveCtx.lineWidth = 2;
+                curveCtx.setLineDash([4, 4]);
+                curveCtx.beginPath();
+                if (controlPoints.length > 0) {
+                    curveCtx.moveTo(controlPoints[0].x, controlPoints[0].y);
+                    for (let i = 1; i < controlPoints.length; i++) {
+                        curveCtx.lineTo(controlPoints[i].x, controlPoints[i].y);
+                    }
+                }
+                curveCtx.stroke();
+                curveCtx.setLineDash([]);
+            }
+
+            // B-Spline curve curve segments (emerald-600)
+            curveCtx.strokeStyle = '#059669'; // emerald-600
+            curveCtx.lineWidth = 3.5;
+            curveCtx.beginPath();
+
+            let tMin = knots[p];
+            let tMax = knots[controlPoints.length];
+            let steps = 300;
+            let first = true;
+            for (let s = 0; s <= steps; s++) {
+                let t = tMin + (s / steps) * (tMax - tMin);
+                let pt = evaluateBSpline(t);
+                if (first) {
+                    curveCtx.moveTo(pt.x, pt.y);
+                    first = false;
+                } else {
+                    curveCtx.lineTo(pt.x, pt.y);
+                }
+            }
+            curveCtx.stroke();
+
+            // Draw segment junction markers if enabled (using the curve's color: emerald-600)
+            if (showSegmentJoints) {
+                let uniqueKnots = [];
+                for (let i = p; i <= controlPoints.length; i++) {
+                    if (uniqueKnots.length === 0 || knots[i] !== uniqueKnots[uniqueKnots.length - 1]) {
+                        uniqueKnots.push(knots[i]);
+                    }
+                }
+
+                uniqueKnots.forEach(knotVal => {
+                    if (knotVal >= tMin && knotVal <= tMax) {
+                        let jointPt = evaluateBSpline(knotVal);
+                        curveCtx.fillStyle = '#059669'; // emerald-600 (curve color)
+                        curveCtx.beginPath();
+                        curveCtx.arc(jointPt.x, jointPt.y, 5, 0, Math.PI * 2);
+                        curveCtx.fill();
+                        curveCtx.strokeStyle = '#ffffff';
+                        curveCtx.lineWidth = 2;
+                        curveCtx.stroke();
+                    }
+                });
+            }
+
+            // Evaluated point C(t) (distinct amber color)
+            let evalPt = evaluateBSpline(currentParamT);
+            curveCtx.fillStyle = '#d97706'; // amber-600
+            curveCtx.beginPath();
+            curveCtx.arc(evalPt.x, evalPt.y, 8, 0, Math.PI * 2);
+            curveCtx.fill();
+            curveCtx.strokeStyle = '#ffffff';
+            curveCtx.lineWidth = 2.5;
+            curveCtx.stroke();
+
+            // Control points (color-coded to match their respective basis functions) - rendered only if enabled
+            if (showControlPolygon) {
+                controlPoints.forEach((pt, idx) => {
+                    let ptColor = basisColors[idx % basisColors.length];
+                    curveCtx.fillStyle = activePointIndex === idx ? '#1e293b' : ptColor;
+                    curveCtx.beginPath();
+                    curveCtx.arc(pt.x, pt.y, activePointIndex === idx ? 10 : 9, 0, Math.PI * 2);
+                    curveCtx.fill();
+                    curveCtx.strokeStyle = '#ffffff';
+                    curveCtx.lineWidth = 2.5;
+                    curveCtx.stroke();
+
+                    curveCtx.fillStyle = '#475569';
+                    curveCtx.font = '600 11px Inter, sans-serif';
+                    curveCtx.fillText(`P${idx}`, pt.x + 14, pt.y - 10);
+                });
+            }
+
+            evalInfo.textContent = `Degree p = ${p} | Knots: [${knots.map(k => k.toFixed(2)).join(', ')}]`;
+            knotVectorText.textContent = `[${knots.map(k => k.toFixed(2)).join(', ')}]`;
+            knotInfoNote.textContent = `Note: For degree p = ${p} with ${controlPoints.length} control points, the knot vector contains ${knots.length} knots.`;
+        }
+
+        // Render Basis Functions overlaid inside the Timeline canvas
+        function drawTimelineBasisFunctions() {
+            const width = timelineCanvas.clientWidth;
+            const height = timelineCanvas.clientHeight;
+            
+            timelineCtx.clearRect(0, 0, width, height);
+
+            // Subtle timeline background grid lines
+            timelineCtx.strokeStyle = 'rgba(0, 0, 0, 0.05)';
+            timelineCtx.lineWidth = 1;
+            for (let i = 1; i <= 3; i++) {
+                let y = (height / 4) * i;
+                timelineCtx.beginPath(); timelineCtx.moveTo(0, y); timelineCtx.lineTo(width, y); timelineCtx.stroke();
+            }
+
+            let n = controlPoints.length - 1;
+            let tMin = knots[0];
+            let tMax = knots[knots.length - 1];
+            let range = tMax - tMin || 1;
+
+            // Draw each basis function curve Ni,p(t) using its specific color matching control point Pi
+            for (let i = 0; i <= n; i++) {
+                timelineCtx.strokeStyle = basisColors[i % basisColors.length];
+                timelineCtx.lineWidth = 2.5;
+                timelineCtx.beginPath();
+
+                let steps = 180;
+                let first = true;
+                for (let s = 0; s <= steps; s++) {
+                    let t = tMin + (s / steps) * range;
+                    let val = basisFunction(i, p, t, knots);
+                    
+                    let xCoord = ((t - tMin) / range) * width;
+                    let yCoord = height - (val * (height - 30) + 15);
+
+                    if (first) {
+                        timelineCtx.moveTo(xCoord, yCoord);
+                        first = false;
+                    } else {
+                        timelineCtx.lineTo(xCoord, yCoord);
+                    }
+                }
+                timelineCtx.stroke();
+            }
+
+            // Draw vertical line for currentParamT
+            let currentX = ((currentParamT - tMin) / range) * width;
+            timelineCtx.strokeStyle = '#d97706';
+            timelineCtx.lineWidth = 2;
+            timelineCtx.setLineDash([4, 4]);
+            timelineCtx.beginPath();
+            timelineCtx.moveTo(currentX, 0);
+            timelineCtx.lineTo(currentX, height);
+            timelineCtx.stroke();
+            timelineCtx.setLineDash([]);
+
+            currentTLabel.textContent = `t = ${currentParamT.toFixed(2)}`;
+            knotMinLabel.textContent = tMin.toFixed(2);
+            knotMaxLabel.textContent = tMax.toFixed(2);
+
+            // Update Slider bounds and value
+            paramSlider.min = tMin;
+            paramSlider.max = tMax;
+            paramSlider.value = currentParamT;
+            sliderValueLabel.textContent = currentParamT.toFixed(2);
+        }
+
+        function drawAll() {
+            drawCurveScene();
+            drawTimelineBasisFunctions();
+            renderKnotDomHandles();
+        }
+
+        // --- Render Interactive Knot Handles over the Timeline ---
+        function renderKnotDomHandles() {
+            knotHandlesLayer.innerHTML = '';
+            let minVal = knots[0];
+            let maxVal = knots[knots.length - 1];
+            let span = maxVal - minVal || 1;
+            const containerWidth = timelineWrapper.clientWidth;
+
+            knots.forEach((knotVal, idx) => {
+                let pct = ((knotVal - minVal) / span) * 100;
+                let pxLeft = (pct / 100) * containerWidth;
+
+                const handle = document.createElement('div');
+                handle.className = `absolute top-0 bottom-0 -ml-3 w-6 cursor-ew-resize flex flex-col items-center justify-between group pointer-events-auto z-10`;
+                handle.style.left = `${pxLeft}px`;
+                handle.title = `Knot t${idx} = ${knotVal.toFixed(2)}`;
+
+                handle.innerHTML = `
+                    <div class="w-2.5 h-6 bg-slate-200 group-hover:bg-blue-600 border border-slate-400 rounded-full shadow transition-colors mt-1"></div>
+                    <div class="w-0.5 bg-blue-500/50 group-hover:bg-blue-600 h-full"></div>
+                    <span class="text-[9px] font-mono text-slate-700 bg-white px-1 rounded mb-1 border border-slate-300 shadow-sm">${knotVal.toFixed(2)}</span>
+                `;
+
+                handle.addEventListener('mousedown', (e) => {
+                    e.stopPropagation();
+                    activeKnotIndex = idx;
+                    isDraggingKnot = true;
+                });
+
+                knotHandlesLayer.appendChild(handle);
+            });
+        }
+
+        // --- Animation Loop for Play/Pause ---
+        function animationLoop(timestamp) {
+            if (!isPlaying) return;
+            if (!lastTimestamp) lastTimestamp = timestamp;
+            let elapsed = (timestamp - lastTimestamp) / 1000;
+            lastTimestamp = timestamp;
+
+            let tMin = knots[p];
+            let tMax = knots[controlPoints.length];
+            let range = tMax - tMin;
+            if (range <= 0) range = 1;
+
+            currentParamT += animationSpeed * elapsed * range;
+            if (currentParamT > tMax) {
+                currentParamT = tMin; // Loop back
+            }
+
+            drawAll();
+            animationFrameId = requestAnimationFrame(animationLoop);
+        }
+
+        function togglePlayState() {
+            isPlaying = !isPlaying;
+            if (isPlaying) {
+                lastTimestamp = null;
+                playIcon.innerHTML = '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'; // Pause icon
+                playBtnText.textContent = 'Pause';
+                animationFrameId = requestAnimationFrame(animationLoop);
+            } else {
+                playIcon.innerHTML = '<path d="M8 5v14l11-7z"/>'; // Play icon
+                playBtnText.textContent = 'Play';
+                if (animationFrameId) cancelAnimationFrame(animationFrameId);
+            }
+        }
+
+        playAnimationBtn.addEventListener('click', togglePlayState);
+
+        // Slider change listener
+        paramSlider.addEventListener('input', (e) => {
+            if (isPlaying) togglePlayState();
+            currentParamT = parseFloat(e.target.value);
+            drawAll();
+        });
+
+        // --- Mouse & Drag Event Handlers ---
+        window.addEventListener('mousemove', (e) => {
+            if (isDraggingKnot && activeKnotIndex !== null) {
+                const rect = timelineWrapper.getBoundingClientRect();
+                let x = e.clientX - rect.left;
+                let pct = Math.max(0, Math.min(1, x / rect.width));
+                let minVal = knots[0];
+                let maxVal = knots[knots.length - 1];
+                let newVal = minVal + pct * (maxVal - minVal);
+
+                let prev = activeKnotIndex > 0 ? knots[activeKnotIndex - 1] : minVal;
+                let next = activeKnotIndex < knots.length - 1 ? knots[activeKnotIndex + 1] : maxVal;
+                
+                if (activeKnotIndex === 0 || activeKnotIndex === knots.length - 1) {
+                    // Endpoint knots fixed
+                } else {
+                    newVal = Math.max(prev, Math.min(next, newVal));
+                    knots[activeKnotIndex] = newVal;
+                    drawAll();
+                }
+            }
+
+            if (isDraggingPoint && activePointIndex !== null) {
+                const rect = curveCanvas.getBoundingClientRect();
+                let x = e.clientX - rect.left;
+                let y = e.clientY - rect.top;
+                controlPoints[activePointIndex].x = Math.max(20, Math.min(curveCanvas.clientWidth - 20, x));
+                controlPoints[activePointIndex].y = Math.max(20, Math.min(curveCanvas.clientHeight - 20, y));
+                drawAll();
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            isDraggingKnot = false;
+            activeKnotIndex = null;
+            isDraggingPoint = false;
+            activePointIndex = null;
+        });
+
+        // Control point dragging on curve canvas
+        curveCanvas.addEventListener('mousedown', (e) => {
+            const rect = curveCanvas.getBoundingClientRect();
+            let mouseX = e.clientX - rect.left;
+            let mouseY = e.clientY - rect.top;
+
+            if (showControlPolygon) {
+                for (let i = 0; i < controlPoints.length; i++) {
+                    let dx = controlPoints[i].x - mouseX;
+                    let dy = controlPoints[i].y - mouseY;
+                    if (Math.sqrt(dx*dx + dy*dy) < 18) {
+                        activePointIndex = i;
+                        isDraggingPoint = true;
+                        return;
+                    }
+                }
+            }
+
+            if (isPlaying) togglePlayState();
+            let tMin = knots[0];
+            let tMax = knots[knots.length - 1];
+            currentParamT = tMin + (mouseX / curveCanvas.clientWidth) * (tMax - tMin);
+            currentParamT = Math.max(knots[p], Math.min(knots[controlPoints.length], currentParamT));
+            drawAll();
+        });
+
+        // Click / scrub on timeline
+        timelineWrapper.addEventListener('mousedown', (e) => {
+            if (isDraggingKnot) return;
+            if (isPlaying) togglePlayState();
+            const rect = timelineWrapper.getBoundingClientRect();
+            let pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            let tMin = knots[0];
+            let tMax = knots[knots.length - 1];
+            currentParamT = tMin + pct * (tMax - tMin);
+            currentParamT = Math.max(knots[p], Math.min(knots[controlPoints.length], currentParamT));
+            drawAll();
+        });
+
+        // --- Button Actions ---
+        resetKnotsBtn.addEventListener('click', () => {
+            if (isPlaying) togglePlayState();
+            knots = getValidDefaultKnots(p);
+            currentParamT = knots[p];
+            drawAll();
+        });
+
+        toggleControlsBtn.addEventListener('click', () => {
+            infoModal.classList.remove('opacity-0', 'pointer-events-none');
+        });
+
+        closeModalBtn.addEventListener('click', () => {
+            infoModal.classList.add('opacity-0', 'pointer-events-none');
+        });
+
+        infoModal.style.transition = 'opacity 0.3s ease';
+
+        // Initial setup and draw
+        window.onload = function() {
+            resizeCanvases();
+        };
+    </script>
+</body>
+</html>
